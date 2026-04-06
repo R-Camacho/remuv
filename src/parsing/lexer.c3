@@ -10,6 +10,7 @@ import remuv::instructions;
 enum TokenKind
 {
     EOF,
+    NEW_LINE,
 
     INSTRUCTION,
     REGISTER,
@@ -55,7 +56,6 @@ fn void Lexer.free(Lexer* l)
     l.tokens.free();
 }
 
-
 fn Token Lexer.next(Lexer* l)
 {
     for (;;) {
@@ -74,9 +74,9 @@ fn Token Lexer.next(Lexer* l)
 
         if (c == '\n')
         {
-            l.advance();
             l.line++;
-            continue;
+            l.advance();
+            return {NEW_LINE, ""};
         }
         
         // TODO: support hexadecimal and binary in the future (with 0x and 0b)
@@ -120,6 +120,11 @@ fn Token Lexer.next(Lexer* l)
                             // TODO: this may not need an error
                             lex_error(l.line, "Unclosed multi-line comment");
                             return { EOF, "" };
+                        }
+                        if (c1 == '\n')
+                        {
+                            l.line++;
+                            l.advance();
                         }
                         if (c1 == '*')
                         {
@@ -179,6 +184,24 @@ fn void run_prompt()
     }
 }
 
+fn void Lexer.lex_file(Lexer* l)
+{
+    Token token = l.next();
+    while (token.kind != EOF)
+    {
+        l.tokens.push(token);
+        token = l.next();
+    }
+}
+
+fn void Lexer.print_tokens(Lexer* l)
+{
+    foreach(&token: l.tokens)                  
+    {
+        token.debug();
+    }
+}
+
 fn Token Lexer.number(Lexer* l)
 {
     usz start = l.current;
@@ -211,9 +234,40 @@ fn Token Lexer.identifier(Lexer* l)
         return {LABEL, slice};
     }
 
+    if (is_register(slice))
+    {
+        // Chop the 'x' off
+        slice = l.src[start + 1 .. l.current - 1];
+        l.advance();
+        return {REGISTER, slice};
+    }
+
+
     // TODO: check if identifier is an instruction 
 
     return {INSTRUCTION, slice};
+}
+
+fn bool is_register(String s)
+{
+    if (s.len != 2 && s.len != 3)
+    {
+        return false;
+    }
+
+    // TODO: add aliases like a0, t0, ...
+    // We could also refactor this check to compare against a list of all possible registers
+    if (s[0] == 'x')
+    {
+        String slice = s[1..];
+        int? n = slice.to_int();
+        if (try n)
+        {
+            return n >= 0 && n <= 31;
+        }
+    }
+
+    return false;
 }
 
 // A few helper functions
