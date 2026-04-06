@@ -5,6 +5,8 @@ import std::io::file;
 import std::collections;
 import std::core::ascii;
 
+import remuv::instructions;
+
 enum TokenKind
 {
     EOF,
@@ -28,7 +30,7 @@ struct Token
 
 fn void Token.debug(Token* t)
 {
-    io::printfn("kind: %s, lexeme: %s", t.kind, t.lexeme);
+    io::printfn("%s(%s)", t.kind, t.lexeme);
 }
 
 struct Lexer
@@ -77,10 +79,15 @@ fn Token Lexer.next(Lexer* l)
             continue;
         }
         
-        // TODO: support hexadecimal and binary in the future
+        // TODO: support hexadecimal and binary in the future (with 0x and 0b)
         if (c.is_digit())
         {
             return l.number();
+        }
+
+        if (c.is_alpha())
+        {
+            return l.identifier();
         }
 
         switch (c)
@@ -178,11 +185,35 @@ fn Token Lexer.number(Lexer* l)
 
     while (ascii::is_digit(l.peek()))
     {
-
         l.advance();
     }
     
     return {IMMEDIATE, l.src[start .. l.current - 1]};
+}
+
+fn Token Lexer.identifier(Lexer* l)
+{
+    usz start = l.current;
+    
+    char c = l.peek();
+    while (ascii::is_alnum(c) || c == '_')
+    {
+        l.advance(); 
+        c = l.peek();
+    }
+
+    String slice = l.src[start .. l.current - 1];
+
+    // TODO: labels can also start with numbers, needs refactor
+    if (c == ':')
+    {
+        l.advance();
+        return {LABEL, slice};
+    }
+
+    // TODO: check if identifier is an instruction 
+
+    return {INSTRUCTION, slice};
 }
 
 // A few helper functions
